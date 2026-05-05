@@ -17,10 +17,11 @@ import {
   getDocs,
   serverTimestamp,
   Timestamp,
+  arrayUnion,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import type { UserData, Payment, AppNotification, Referral, Reward, Withdrawal, SignUpFormData } from './types';
-import { ACTIVATION_AMOUNT, TOTAL_ACTIVATION, REWARD_CASHBACK, REWARD_BONUS, REWARD_TOTAL, REWARD_DELAY_WEEKS, CAMPAIGN_END_DATE } from './constants';
+import type { UserData, Payment, AppNotification, Referral, Reward, Withdrawal, SignUpFormData, Trio } from './types';
+import { ACTIVATION_AMOUNT, TOTAL_ACTIVATION, REWARD_CASHBACK, REWARD_BONUS, REWARD_TOTAL, REWARD_DELAY_WEEKS, CAMPAIGN_END_DATE, SHARE_REWARD_AMOUNT, MAX_DAILY_SHARES, GENEROSITY_STEPS } from './constants';
 
 // ── SMS helper ────────────────────────────────────────────────────────────────
 
@@ -288,6 +289,7 @@ export async function verifyPayment(
     if (user.referredBy) {
       await creditReferrerCommission(user.referredBy, payment.userId, payment.amount);
       await checkAndAwardPreLaunchReward(user.referredBy);
+      await checkAllGenerosityMilestones(user.referredBy);
     }
 
     return { success: true };
@@ -352,6 +354,7 @@ export async function recordActivationPayment(
     if (user.referredBy) {
       await creditReferrerCommission(user.referredBy, uid, amount);
       await checkAndAwardPreLaunchReward(user.referredBy);
+      await checkAllGenerosityMilestones(user.referredBy);
     }
 
     await checkAndAwardPreLaunchReward(uid);
@@ -467,11 +470,21 @@ export async function processWithdrawal(
     if (action === 'approved') {
       const userSnap = await getDoc(doc(db, 'users', w.userId));
       if (userSnap.exists()) {
-        const currentEarnings = (userSnap.data().totalEarnings as number) || 0;
+        const userData = userSnap.data() as UserData;
+        const currentRefEarnings = userData.totalEarnings || 0;
+        const currentShareEarnings = userData.shareEarnings || 0;
+
+        let remainingToDeduct = w.amount;
+        const deductRef = Math.min(currentRefEarnings, remainingToDeduct);
+        remainingToDeduct -= deductRef;
+        const deductShare = Math.min(currentShareEarnings, remainingToDeduct);
+
         await updateDoc(doc(db, 'users', w.userId), {
-          totalEarnings: Math.max(0, currentEarnings - w.amount),
+          totalEarnings: Math.max(0, currentRefEarnings - deductRef),
+          shareEarnings: Math.max(0, currentShareEarnings - deductShare),
           updatedAt: now,
         });
+
         sendSMSNotification(
           userSnap.data().phone as string,
           `GoDirect247: Your R${w.amount} withdrawal has been approved! Funds will be transferred to your ${w.bankName} account within 1-3 business days.`
@@ -512,7 +525,245 @@ export async function releaseReward(
   }
 }
 
-// ── Notifications ─────────────────────────────────────────────────────────────
+export async function recordLinkShare(uid: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const userRef = doc(db, 'users', uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) throw new Error('User not found');
+    const user = userSnap.data() as UserData;
+
+    const now = new Date();
+    const todayStr = now.toDateString();
+    const lastShareTs = user.lastShareDate;
+    const lastShareDate = lastShareTs ? (typeof lastShareTs.toDate === 'function' ? lastShareTs.toDate() : new Date(lastShareTs as unknown as string)) : null;
+    const lastShareStr = lastShareDate ? lastShareDate.toDateString() : '';
+
+    const dailyCount = (lastShareStr === todayStr) ? (user.dailyShareCount || 0) : 0;
+
+    if (dailyCount >= MAX_DAILY_SHARES) {
+      return { success: false, error: 'Daily share limit reached.' };
+    }
+
+    const newShareCount = (user.shareCount || 0) + 1;
+    const newShareEarnings = (user.shareEarnings || 0) + SHARE_REWARD_AMOUNT;
+
+    await updateDoc(userRef, {
+      shareCount: newShareCount,
+      shareEarnings: newShareEarnings,
+      dailyShareCount: dailyCount + 1,
+      lastShareDate: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to record share' };
+  }
+}
+
+
+export async function checkAllGenerosityMilestones(uid: string): Promise<void> {
+  try {
+    const userRef = doc(db, 'users', uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return;
+    const user = userSnap.data() as UserData;
+    const currentStep = user.generosityStep || 0;
+
+    // Count paid referrals
+    const q = query(
+      collection(db, 'referrals'),
+      where('referrerId', '==', uid),
+      where('status', '==', 'paid')
+    );
+    const snap = await getDocs(q);
+    const paidCount = snap.size;
+
+    // Step 1: Silver Plan — 2 paid referrals → R3,000
+    if (paidCount >= 2 && currentStep === 0) {
+      const reward = GENEROSITY_STEPS[0].harvest;
+      await updateDoc(userRef, {
+        generosityStep: 1,
+        harvestBalance: (user.harvestBalance || 0) + reward,
+        updatedAt: serverTimestamp(),
+      });
+      await createNotification(uid, 'reward_ready', `Congratulations! Your Silver Plan harvest of R${reward.toLocaleString()} is ready.`);
+      // Try auto-create trio if not in one
+      await tryCreateTrio(uid);
+    }
+
+    // Steps 2-9: Each step requires the user to have upgraded to the previous step
+    // and paid referrals at the threshold. For simplicity, after Step 1,
+    // each upgrade is user-initiated via upgradeGenerosityStep().
+    // Admin can also manually verify team completions.
+  } catch (err) {
+    console.error('Generosity milestone check failed:', err);
+  }
+}
+
+export async function tryCreateTrio(leaderId: string): Promise<{ success: boolean; trioId?: string; error?: string }> {
+  try {
+    const leaderRef = doc(db, 'users', leaderId);
+    const leaderSnap = await getDoc(leaderRef);
+    if (!leaderSnap.exists()) return { success: false, error: 'Leader not found' };
+    const leader = leaderSnap.data() as UserData;
+    if (leader.trioId) return { success: true, trioId: leader.trioId };
+
+    // Find 2 paid referrals
+    const q = query(
+      collection(db, 'referrals'),
+      where('referrerId', '==', leaderId),
+      where('status', '==', 'paid'),
+      limit(2)
+    );
+    const snap = await getDocs(q);
+    if (snap.size < 2) return { success: false, error: 'Need 2 paid referrals to form a trio' };
+
+    const memberIds = snap.docs.map((d) => d.data().referredUserId as string);
+    const memberNames: string[] = [];
+    for (const mid of memberIds) {
+      const mSnap = await getDoc(doc(db, 'users', mid));
+      memberNames.push(mSnap.exists() ? (mSnap.data().fullName as string) || 'Unknown' : 'Unknown');
+    }
+
+    const now = serverTimestamp();
+    const trioRef = doc(collection(db, 'trios'));
+    const trioId = trioRef.id;
+
+    await setDoc(trioRef, {
+      leaderId,
+      leaderName: leader.fullName || 'Unknown',
+      memberIds,
+      memberNames,
+      status: 'active',
+      step: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Link all members to the trio
+    await updateDoc(leaderRef, { trioId, updatedAt: now });
+    for (const mid of memberIds) {
+      await updateDoc(doc(db, 'users', mid), { trioId, fundedBy: leaderId, updatedAt: now });
+    }
+
+    await createNotification(leaderId, 'reward_ready', `Your trio is formed with ${memberNames.join(' & ')}! Step 1 unlocked.`);
+    return { success: true, trioId };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Trio creation failed' };
+  }
+}
+
+export async function getUserTrio(uid: string): Promise<Trio | null> {
+  try {
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    if (!userSnap.exists()) return null;
+    const user = userSnap.data() as UserData;
+    if (!user.trioId) return null;
+    const trioSnap = await getDoc(doc(db, 'trios', user.trioId));
+    if (!trioSnap.exists()) return null;
+    return { id: trioSnap.id, ...trioSnap.data() } as Trio;
+  } catch {
+    return null;
+  }
+}
+
+export async function getAllTrios(): Promise<{ success: boolean; trios?: Trio[]; error?: string }> {
+  try {
+    const snap = await getDocs(query(collection(db, 'trios'), orderBy('createdAt', 'desc')));
+    const trios = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Trio));
+    return { success: true, trios };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to load trios' };
+  }
+}
+
+export async function awardDownstreamReward(userId: string, newStep: number): Promise<void> {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return;
+    const user = userSnap.data() as UserData;
+    const funderId = user.fundedBy;
+    if (!funderId) return;
+
+    // Reward funder when funded member reaches Diamond Gold (Step 5) or higher
+    if (newStep === 5) {
+      const funderRef = doc(db, 'users', funderId);
+      const funderSnap = await getDoc(funderRef);
+      if (!funderSnap.exists()) return;
+      const funder = funderSnap.data() as UserData;
+      const reward = 2500;
+      await updateDoc(funderRef, {
+        downstreamRewards: (funder.downstreamRewards || 0) + reward,
+        totalEarnings: (funder.totalEarnings || 0) + reward,
+        updatedAt: serverTimestamp(),
+      });
+      await createNotification(funderId, 'paid', `R${reward.toLocaleString()} earned! ${user.fullName || 'Your team member'} reached Diamond Gold Status.`);
+      sendSMSNotification(
+        funder.phone as string,
+        `GoDirect247: R${reward.toLocaleString()} earned! ${user.fullName || 'A team member'} reached Diamond Gold Status. Keep leading!`
+      );
+    }
+  } catch (err) {
+    console.error('Downstream reward failed:', err);
+  }
+}
+
+export async function upgradeGenerosityStep(uid: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const userRef = doc(db, 'users', uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) throw new Error('User not found');
+    const user = userSnap.data() as UserData;
+
+    const currentStep = user.generosityStep || 0;
+    if (currentStep >= GENEROSITY_STEPS.length) throw new Error('You have reached the top!');
+
+    const nextStepConfig = GENEROSITY_STEPS[currentStep]; // The step the user wants to join
+    const harvestAvailable = user.harvestBalance || 0;
+
+    if (harvestAvailable < nextStepConfig.seed) {
+      throw new Error(`Insufficient harvest balance to seed ${nextStepConfig.name}. Requires R${nextStepConfig.seed}.`);
+    }
+
+    const newStep = currentStep + 1;
+    const newHarvest = harvestAvailable - nextStepConfig.seed;
+    const keepAmount = nextStepConfig.keep ?? 0;
+
+    await updateDoc(userRef, {
+      generosityStep: newStep,
+      harvestBalance: newHarvest,
+      totalEarnings: (user.totalEarnings || 0) + keepAmount,
+      updatedAt: serverTimestamp(),
+    });
+
+    // Update trio step if leader
+    if (user.trioId) {
+      const trioRef = doc(db, 'trios', user.trioId);
+      const trioSnap = await getDoc(trioRef);
+      if (trioSnap.exists()) {
+        const trio = trioSnap.data() as Trio;
+        if (trio.leaderId === uid) {
+          await updateDoc(trioRef, { step: newStep, updatedAt: serverTimestamp() });
+        }
+      }
+    }
+
+    // Notify downstream funder if milestone reached
+    await awardDownstreamReward(uid, newStep);
+
+    await createNotification(
+      uid,
+      'tier_up',
+      `You have progressed to ${nextStepConfig.name}! Harvest: R${nextStepConfig.harvest.toLocaleString()}.`
+    );
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Upgrade failed' };
+  }
+}
 
 export async function createNotification(
   userId: string,

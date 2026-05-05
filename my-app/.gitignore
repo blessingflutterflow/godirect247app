@@ -19,6 +19,10 @@
 
 # production
 /build
+/dist
+
+# local dev
+node_modules
 
 # misc
 .DS_Store

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -13,6 +13,10 @@
   <script>
     tailwind.config={theme:{extend:{colors:{dark:'#191c1f',gold:'#f3cc20','gold-dark':'#c9a800',brand:'#0682B4',surface:'#f4f4f4',teal:'#00a87e',danger:'#e23b4a',muted:'#8d969e',slate:'#505a63'},fontFamily:{display:['Plus Jakarta Sans','sans-serif']}}}}
   </script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  <script src="../js/app.js"></script>
   <style>
     *{-webkit-font-smoothing:antialiased}
     body{font-family:'Inter',sans-serif}
@@ -32,7 +36,7 @@
   <div class="font-display font-extrabold text-white text-lg">Go<span class="text-gold">Direct</span>247 <span class="text-white/30 font-normal text-sm ml-1">Admin</span></div>
   <div class="ml-auto flex items-center gap-3">
     <span class="text-white/50 text-sm hidden sm:block">admin@godirect247.co.za</span>
-    <button onclick="if(confirm('Sign out?'))location.href='index.html'" class="text-white/40 hover:text-white transition-colors p-1"><i class="ph ph-sign-out text-lg"></i></button>
+    <button onclick="if(confirm('Sign out?'))adminLogout()" class="text-white/40 hover:text-white transition-colors p-1"><i class="ph ph-sign-out text-lg"></i></button>
   </div>
 </nav>
 
@@ -42,22 +46,22 @@
   <div class="ani1 grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
     <div class="bg-dark border border-white/10 rounded-2xl p-5">
       <p class="text-white/40 text-xs uppercase tracking-wide font-semibold mb-1">Total members</p>
-      <p class="font-display font-extrabold text-white text-3xl">1 247</p>
-      <p class="text-teal text-xs mt-1 flex items-center gap-1"><i class="ph ph-trend-up"></i> +23 this month</p>
+      <p id="statTotal" class="font-display font-extrabold text-white text-3xl">-</p>
+      <p class="text-teal text-xs mt-1 flex items-center gap-1"><i class="ph ph-trend-up"></i> <span id="statThisMonth">-</span> this month</p>
     </div>
     <div class="bg-dark border border-white/10 rounded-2xl p-5">
       <p class="text-white/40 text-xs uppercase tracking-wide font-semibold mb-1">Active policies</p>
-      <p class="font-display font-extrabold text-white text-3xl">1 089</p>
-      <p class="text-white/40 text-xs mt-1">87% activation rate</p>
+      <p id="statActive" class="font-display font-extrabold text-white text-3xl">-</p>
+      <p id="statRate" class="text-white/40 text-xs mt-1">-</p>
     </div>
     <div class="bg-dark border border-white/10 rounded-2xl p-5">
       <p class="text-white/40 text-xs uppercase tracking-wide font-semibold mb-1">Pending review</p>
-      <p class="font-display font-extrabold text-gold text-3xl">47</p>
+      <p id="statPending" class="font-display font-extrabold text-gold text-3xl">-</p>
       <p class="text-white/40 text-xs mt-1">Awaiting activation</p>
     </div>
     <div class="bg-dark border border-white/10 rounded-2xl p-5">
       <p class="text-white/40 text-xs uppercase tracking-wide font-semibold mb-1">This month</p>
-      <p class="font-display font-extrabold text-white text-3xl">23</p>
+      <p id="statNew" class="font-display font-extrabold text-white text-3xl">-</p>
       <p class="text-white/40 text-xs mt-1">New applications</p>
     </div>
   </div>
@@ -104,6 +108,80 @@
 
     <div class="p-4 border-t border-white/10 text-white/30 text-xs" id="tableFooter">Showing all members</div>
   </div>
+
+  <!-- Tab navigation -->
+  <div class="ani3 flex gap-2 mb-4 overflow-x-auto pb-1">
+    <button onclick="switchTab('members')" id="tab-members" class="tab-btn bg-gold/10 border border-gold/20 text-gold text-xs font-semibold px-4 py-2 rounded-full whitespace-nowrap">Members</button>
+    <button onclick="switchTab('payments')" id="tab-payments" class="tab-btn bg-white/5 border border-white/10 text-white/50 text-xs font-semibold px-4 py-2 rounded-full whitespace-nowrap hover:bg-white/10 transition-all">Pending Payments</button>
+    <button onclick="switchTab('rewards')" id="tab-rewards" class="tab-btn bg-white/5 border border-white/10 text-white/50 text-xs font-semibold px-4 py-2 rounded-full whitespace-nowrap hover:bg-white/10 transition-all">Pre-Launch Rewards</button>
+    <button onclick="switchTab('referrals')" id="tab-referrals" class="tab-btn bg-white/5 border border-white/10 text-white/50 text-xs font-semibold px-4 py-2 rounded-full whitespace-nowrap hover:bg-white/10 transition-all">Referrals</button>
+  </div>
+
+  <!-- Payments tab -->
+  <div id="view-payments" class="tab-view hidden ani4 bg-dark border border-white/10 rounded-2xl overflow-hidden">
+    <div class="p-5 border-b border-white/10 flex items-center justify-between">
+      <h3 class="font-display font-bold text-white text-base">Pending Payments</h3>
+      <span id="pendingPaymentCount" class="bg-gold/20 text-gold text-xs font-semibold px-2.5 py-1 rounded-full">0</span>
+    </div>
+    <div class="hidden sm:block overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="border-b border-white/10">
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Member</th>
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Type</th>
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Amount</th>
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Date</th>
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Action</th>
+        </tr></thead>
+        <tbody id="paymentsTable"></tbody>
+      </table>
+    </div>
+    <div id="paymentsMobile" class="sm:hidden divide-y divide-white/5"></div>
+    <div id="paymentsFooter" class="p-4 border-t border-white/10 text-white/30 text-xs">No pending payments</div>
+  </div>
+
+  <!-- Rewards tab -->
+  <div id="view-rewards" class="tab-view hidden ani4 bg-dark border border-white/10 rounded-2xl overflow-hidden">
+    <div class="p-5 border-b border-white/10 flex items-center justify-between">
+      <h3 class="font-display font-bold text-white text-base">Pre-Launch Special Rewards</h3>
+      <span id="rewardCount" class="bg-gold/20 text-gold text-xs font-semibold px-2.5 py-1 rounded-full">0</span>
+    </div>
+    <div class="hidden sm:block overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="border-b border-white/10">
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Member</th>
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Referrals</th>
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Reward</th>
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Status</th>
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Release Date</th>
+        </tr></thead>
+        <tbody id="rewardsTable"></tbody>
+      </table>
+    </div>
+    <div id="rewardsMobile" class="sm:hidden divide-y divide-white/5"></div>
+    <div id="rewardsFooter" class="p-4 border-t border-white/10 text-white/30 text-xs">No rewards yet</div>
+  </div>
+
+  <!-- Referrals tab -->
+  <div id="view-referrals" class="tab-view hidden ani4 bg-dark border border-white/10 rounded-2xl overflow-hidden">
+    <div class="p-5 border-b border-white/10 flex items-center justify-between">
+      <h3 class="font-display font-bold text-white text-base">Referral Commissions</h3>
+      <span id="referralCount" class="bg-gold/20 text-gold text-xs font-semibold px-2.5 py-1 rounded-full">0</span>
+    </div>
+    <div class="hidden sm:block overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="border-b border-white/10">
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Referrer</th>
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Referred</th>
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Commission</th>
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Status</th>
+          <th class="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">Date</th>
+        </tr></thead>
+        <tbody id="referralsTable"></tbody>
+      </table>
+    </div>
+    <div id="referralsMobile" class="sm:hidden divide-y divide-white/5"></div>
+    <div id="referralsFooter" class="p-4 border-t border-white/10 text-white/30 text-xs">No referrals yet</div>
+  </div>
 </div>
 
 <!-- Member detail drawer -->
@@ -119,75 +197,74 @@
 </div>
 
 <script>
-const MEMBERS = [
-  {id:1,name:'Thabo Nkosi',email:'thabo@email.com',idno:'9001015001089',plan:'Gold Plus',status:'Active',applied:'21 Apr 2026',dep:2,referral:'Sarah M.'},
-  {id:2,name:'Nomvula Dlamini',email:'nomvula@email.com',idno:'8803220200085',plan:'Silver Plus',status:'Pending',applied:'20 Apr 2026',dep:1,referral:''},
-  {id:3,name:'Sipho Khumalo',email:'sipho@email.com',idno:'9204050301080',plan:'Diamond Gold',status:'Active',applied:'18 Apr 2026',dep:3,referral:'Thabo N.'},
-  {id:4,name:'Zanele Mokoena',email:'zanele@email.com',idno:'8507150400080',plan:'King Plus',status:'Active',applied:'15 Apr 2026',dep:4,referral:''},
-  {id:5,name:'Bongani Zulu',email:'bongani@email.com',idno:'9112280500088',plan:'Superior',status:'Pending',applied:'12 Apr 2026',dep:2,referral:'Rep: Sipho K.'},
-  {id:6,name:'Lindiwe Ntuli',email:'lindiwe@email.com',idno:'8705160600082',plan:'Gold Gold',status:'Lapsed',applied:'01 Mar 2026',dep:1,referral:''},
-  {id:7,name:'Mpho Sithole',email:'mpho@email.com',idno:'9309070700087',plan:'Premier Plus',status:'Active',applied:'28 Mar 2026',dep:2,referral:'Ad: Facebook'},
-  {id:8,name:'Ayanda Cele',email:'ayanda@email.com',idno:'8801230800089',plan:'Silver Gold',status:'Pending',applied:'22 Apr 2026',dep:0,referral:''},
-];
-
+let allMembers = [];
 const STATUS_COLORS = {Active:'text-teal bg-teal/10 border-teal/20',Pending:'text-gold bg-gold/10 border-gold/20',Lapsed:'text-danger bg-danger/10 border-danger/20'};
 
 function statusBadge(s){return `<span class="text-xs font-semibold px-2.5 py-1 rounded-full border ${STATUS_COLORS[s]||''}">${s}</span>`;}
 
+function formatDateLocal(date) {
+  if(!date) return '-';
+  const d = date.toDate ? date.toDate() : new Date(date);
+  return d.toLocaleDateString('en-ZA', {day:'2-digit', month:'short', year:'numeric'});
+}
+
 function renderTable(data) {
-  // Desktop table
   document.getElementById('membersTable').innerHTML = data.map(m=>`
-    <tr class="border-b border-white/5 hover:bg-white/[0.03] cursor-pointer transition-colors" onclick="openDrawer(${m.id})">
+    <tr class="border-b border-white/5 hover:bg-white/[0.03] cursor-pointer transition-colors" onclick="openDrawer('${m.id}')">
       <td class="px-5 py-3.5">
-        <div class="font-semibold text-white text-sm">${m.name}</div>
-        <div class="text-white/40 text-xs">${m.email}</div>
+        <div class="font-semibold text-white text-sm">${m.fullName || 'Unknown'}</div>
+        <div class="text-white/40 text-xs">${m.email || ''}</div>
       </td>
-      <td class="px-5 py-3.5 text-white/70 text-sm">${m.plan}</td>
+      <td class="px-5 py-3.5 text-white/70 text-sm">${m.tier || '-'}</td>
       <td class="px-5 py-3.5">${statusBadge(m.status)}</td>
-      <td class="px-5 py-3.5 text-white/40 text-xs">${m.applied}</td>
+      <td class="px-5 py-3.5 text-white/40 text-xs">${formatDateLocal(m.createdAt)}</td>
       <td class="px-5 py-3.5">
-        <button onclick="event.stopPropagation();changeStatus(${m.id})" class="text-white/40 hover:text-white text-xs border border-white/15 rounded-full px-3 py-1 hover:border-white/30 transition-all">Update</button>
+        <button onclick="event.stopPropagation();changeStatus('${m.id}')" class="text-white/40 hover:text-white text-xs border border-white/15 rounded-full px-3 py-1 hover:border-white/30 transition-all">Update</button>
       </td>
     </tr>`).join('');
-  // Mobile cards
   document.getElementById('mobileCards').innerHTML = data.map(m=>`
-    <div class="p-4 flex items-center justify-between cursor-pointer hover:bg-white/[0.03] transition-colors" onclick="openDrawer(${m.id})">
+    <div class="p-4 flex items-center justify-between cursor-pointer hover:bg-white/[0.03] transition-colors" onclick="openDrawer('${m.id}')">
       <div>
-        <div class="font-semibold text-white text-sm">${m.name}</div>
-        <div class="text-white/40 text-xs mt-0.5">${m.plan} &middot; ${m.applied}</div>
+        <div class="font-semibold text-white text-sm">${m.fullName || 'Unknown'}</div>
+        <div class="text-white/40 text-xs mt-0.5">${m.tier || '-'} &middot; ${formatDateLocal(m.createdAt)}</div>
       </div>
       <div class="flex items-center gap-2">${statusBadge(m.status)}<i class="ph ph-caret-right text-white/30"></i></div>
     </div>`).join('');
-  document.getElementById('tableFooter').textContent = `Showing ${data.length} of ${MEMBERS.length} members`;
+  document.getElementById('tableFooter').textContent = `Showing ${data.length} of ${allMembers.length} members`;
 }
 
 function filterTable() {
   const q = document.getElementById('searchInput').value.toLowerCase();
   const st = document.getElementById('statusFilter').value;
   const pl = document.getElementById('planFilter').value;
-  const filtered = MEMBERS.filter(m=>{
-    const matchQ = !q || m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q) || m.idno.includes(q);
+  const filtered = allMembers.filter(m=>{
+    const name = (m.fullName || '').toLowerCase();
+    const email = (m.email || '').toLowerCase();
+    const idno = m.idNumber || '';
+    const matchQ = !q || name.includes(q) || email.includes(q) || idno.includes(q);
     const matchS = !st || m.status===st;
-    const matchP = !pl || m.plan.includes(pl);
+    const matchP = !pl || (m.planType && m.planType.toLowerCase().includes(pl.toLowerCase())) || (m.tier && m.tier.toLowerCase().includes(pl.toLowerCase()));
     return matchQ && matchS && matchP;
   });
   renderTable(filtered);
 }
 
 function openDrawer(id) {
-  const m = MEMBERS.find(x=>x.id===id);
+  const m = allMembers.find(x=>x.id===id);
   if(!m) return;
-  document.getElementById('drawerName').textContent = m.name;
+  document.getElementById('drawerName').textContent = m.fullName || 'Member';
+  const deps = (m.dependents || []).length;
+  const ref = m.referredByName || (m.referredBy ? 'Yes' : 'None');
   document.getElementById('drawerContent').innerHTML = `
     <div class="bg-white/[0.05] border border-white/10 rounded-2xl p-4 space-y-3">
-      ${[['Status',statusBadge(m.status)],['Plan',`<span class="text-white">${m.plan}</span>`],['ID Number',`<span class="text-white/70">${m.idno}</span>`],['Email',`<span class="text-white/70">${m.email}</span>`],['Applied',`<span class="text-white/70">${m.applied}</span>`],['Dependents',`<span class="text-white/70">${m.dep}</span>`],['Referral',`<span class="text-white/70">${m.referral||'None'}</span>`]]
+      ${[['Status',statusBadge(m.status)],['Plan',`<span class="text-white">${m.tier || '-'}</span>`],['ID Number',`<span class="text-white/70">${m.idNumber || '-'}</span>`],['Email',`<span class="text-white/70">${m.email || '-'}</span>`],['Applied',`<span class="text-white/70">${formatDateLocal(m.createdAt)}</span>`],['Dependents',`<span class="text-white/70">${deps}</span>`],['Referral',`<span class="text-white/70">${ref}</span>`]]
         .map(([k,v])=>`<div class="flex items-center justify-between gap-4"><span class="text-white/40 text-xs uppercase tracking-wide font-semibold">${k}</span>${v}</div>`)
         .join('<div class="border-t border-white/5"></div>')}
     </div>
     <div class="grid grid-cols-3 gap-2">
-      <button onclick="setStatus(${id},'Active')" class="bg-teal/10 border border-teal/20 text-teal text-xs font-semibold py-2.5 rounded-xl hover:bg-teal/20 transition-all">Activate</button>
-      <button onclick="setStatus(${id},'Pending')" class="bg-gold/10 border border-gold/20 text-gold text-xs font-semibold py-2.5 rounded-xl hover:bg-gold/20 transition-all">Pending</button>
-      <button onclick="setStatus(${id},'Lapsed')" class="bg-danger/10 border border-danger/20 text-danger text-xs font-semibold py-2.5 rounded-xl hover:bg-danger/20 transition-all">Lapse</button>
+      <button onclick="setStatus('${id}','Active')" class="bg-teal/10 border border-teal/20 text-teal text-xs font-semibold py-2.5 rounded-xl hover:bg-teal/20 transition-all">Activate</button>
+      <button onclick="setStatus('${id}','Pending')" class="bg-gold/10 border border-gold/20 text-gold text-xs font-semibold py-2.5 rounded-xl hover:bg-gold/20 transition-all">Pending</button>
+      <button onclick="setStatus('${id}','Lapsed')" class="bg-danger/10 border border-danger/20 text-danger text-xs font-semibold py-2.5 rounded-xl hover:bg-danger/20 transition-all">Lapse</button>
     </div>
     <div>
       <label class="text-white/40 text-xs uppercase tracking-wide font-semibold block mb-2">Add note</label>
@@ -203,14 +280,161 @@ function closeDrawer() {
   document.body.style.overflow='';
 }
 
-function setStatus(id, status) {
-  const m = MEMBERS.find(x=>x.id===id);
-  if(m) { m.status=status; renderTable(MEMBERS); closeDrawer(); }
+async function setStatus(id, status) {
+  const m = allMembers.find(x=>x.id===id);
+  if(!m) return;
+  try {
+    await db.collection('users').doc(id).update({
+      isActivated: status === 'Active',
+      status: status,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    m.status = status;
+    m.isActivated = status === 'Active';
+    renderTable(allMembers);
+    closeDrawer();
+    updateStats();
+  } catch(e) {
+    alert('Could not update status: ' + e.message);
+  }
 }
 
 function changeStatus(id) { openDrawer(id); }
 
-renderTable(MEMBERS);
+function updateStats() {
+  loadPayments();
+  loadRewards();
+  loadReferrals();
+  const total = allMembers.length;
+  const active = allMembers.filter(m => m.isActivated).length;
+  const pending = total - active;
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statActive').textContent = active;
+  document.getElementById('statPending').textContent = pending;
+  document.getElementById('statRate').textContent = total ? Math.round((active/total)*100) + '% activation rate' : '-';
+  document.getElementById('statNew').textContent = total;
+  document.getElementById('statThisMonth').textContent = total;
+}
+
+async function loadData() {
+  const result = await getAllMembers();
+  if(!result.success) { alert('Failed to load members: ' + (result.error || '')); return; }
+  allMembers = result.members.map(m => {
+    if(!m.status) m.status = m.isActivated ? 'Active' : 'Pending';
+    return m;
+  });
+  renderTable(allMembers);
+  updateStats();
+}
+
+async function adminLogout() {
+  await auth.signOut();
+  window.location.href = 'index.html';
+}
+
+// ── TAB SWITCHING ──
+let currentTab = 'members';
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('bg-gold/10','border-gold/20','text-gold');
+    btn.classList.add('bg-white/5','border-white/10','text-white/50');
+  });
+  const view = document.getElementById('view-' + tab);
+  const btn = document.getElementById('tab-' + tab);
+  if(view) view.classList.remove('hidden');
+  if(btn) { btn.classList.remove('bg-white/5','border-white/10','text-white/50'); btn.classList.add('bg-gold/10','border-gold/20','text-gold'); }
+  if(tab==='payments') loadPayments();
+  if(tab==='rewards') loadRewards();
+  if(tab==='referrals') loadReferrals();
+}
+
+// ── PAYMENTS ──
+async function loadPayments() {
+  const result = await getPendingPayments();
+  if(!result.success) { console.error(result.error); return; }
+  const payments = result.payments || [];
+  document.getElementById('pendingPaymentCount').textContent = payments.length;
+  document.getElementById('paymentsFooter').textContent = payments.length + ' pending payments';
+  const typeLabel = { self: 'Self Activation', family1: 'Family 1', family2: 'Family 2' };
+  document.getElementById('paymentsTable').innerHTML = payments.map(p => {
+    const member = allMembers.find(m => m.id === p.userId);
+    const name = member ? member.fullName : p.userId.slice(0,8);
+    return `<tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors"><td class="px-5 py-3.5"><div class="font-semibold text-white text-sm">${name}</div><div class="text-white/40 text-xs">${p.userId}</div></td><td class="px-5 py-3.5 text-white/70 text-sm">${typeLabel[p.type] || p.type || '-'}</td><td class="px-5 py-3.5 text-white font-semibold text-sm">R${p.amount || 0}</td><td class="px-5 py-3.5 text-white/40 text-xs">${formatDateLocal(p.createdAt)}</td><td class="px-5 py-3.5"><button onclick="adminVerifyPayment('${p.id}')" class="bg-teal/10 border border-teal/20 text-teal text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-teal/20 transition-all">Verify</button></td></tr>`;
+  }).join('') || '<tr><td class="px-5 py-4 text-white/40 text-sm" colspan="5">No pending payments</td></tr>';
+  document.getElementById('paymentsMobile').innerHTML = payments.map(p => {
+    const member = allMembers.find(m => m.id === p.userId);
+    const name = member ? member.fullName : p.userId.slice(0,8);
+    return `<div class="p-4 flex items-center justify-between"><div><div class="font-semibold text-white text-sm">${name}</div><div class="text-white/40 text-xs mt-0.5">${typeLabel[p.type] || p.type || '-'} · R${p.amount || 0}</div></div><button onclick="adminVerifyPayment('${p.id}')" class="bg-teal/10 border border-teal/20 text-teal text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-teal/20 transition-all">Verify</button></div>`;
+  }).join('') || '<div class="p-4 text-white/40 text-sm text-center">No pending payments</div>';
+}
+
+async function adminVerifyPayment(paymentId) {
+  const user = auth.currentUser;
+  if(!user) return;
+  try {
+    await verifyPayment(paymentId, user.uid);
+    alert('Payment verified successfully');
+    loadPayments();
+    loadData();
+  } catch(e) {
+    alert('Error: ' + (e.message || 'Could not verify'));
+  }
+}
+
+// ── REWARDS ──
+async function loadRewards() {
+  try {
+    const snap = await db.collection('rewards').orderBy('createdAt', 'desc').get();
+    const rewards = [];
+    snap.forEach(doc => rewards.push({ id: doc.id, ...doc.data() }));
+    document.getElementById('rewardCount').textContent = rewards.length;
+    document.getElementById('rewardsFooter').textContent = rewards.length + ' reward records';
+    document.getElementById('rewardsTable').innerHTML = rewards.map(r => {
+      const member = allMembers.find(m => m.id === r.userId);
+      const name = member ? member.fullName : r.userId.slice(0,8);
+      return `<tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors"><td class="px-5 py-3.5"><div class="font-semibold text-white text-sm">${name}</div><div class="text-white/40 text-xs">${r.userId}</div></td><td class="px-5 py-3.5 text-white/70 text-sm">${r.referralCount || '-'}</td><td class="px-5 py-3.5 text-gold font-semibold text-sm">R${r.totalAmount || 0}</td><td class="px-5 py-3.5">${statusBadge(r.status==='released'?'Active':'Pending')}</td><td class="px-5 py-3.5 text-white/40 text-xs">${formatDateLocal(r.releaseDate)}</td></tr>`;
+    }).join('') || '<tr><td class="px-5 py-4 text-white/40 text-sm" colspan="5">No rewards yet</td></tr>';
+    document.getElementById('rewardsMobile').innerHTML = rewards.map(r => {
+      const member = allMembers.find(m => m.id === r.userId);
+      const name = member ? member.fullName : r.userId.slice(0,8);
+      return `<div class="p-4"><div class="font-semibold text-white text-sm">${name}</div><div class="text-white/40 text-xs mt-0.5">R${r.totalAmount || 0} · ${r.status || 'pending'} · Release: ${formatDateLocal(r.releaseDate)}</div></div>`;
+    }).join('') || '<div class="p-4 text-white/40 text-sm text-center">No rewards yet</div>';
+  } catch(e) { console.error('loadRewards error:', e); }
+}
+
+// ── REFERRALS ──
+async function loadReferrals() {
+  try {
+    const snap = await db.collection('referrals').orderBy('createdAt', 'desc').get();
+    const referrals = [];
+    snap.forEach(doc => referrals.push({ id: doc.id, ...doc.data() }));
+    document.getElementById('referralCount').textContent = referrals.length;
+    document.getElementById('referralsFooter').textContent = referrals.length + ' referral records';
+    document.getElementById('referralsTable').innerHTML = referrals.map(r => {
+      const referrer = allMembers.find(m => m.id === r.referrerId);
+      const referred = allMembers.find(m => m.id === r.referredUserId);
+      const refName = referrer ? referrer.fullName : r.referrerId.slice(0,8);
+      const recName = referred ? referred.fullName : r.referredUserId.slice(0,8);
+      return `<tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors"><td class="px-5 py-3.5"><div class="font-semibold text-white text-sm">${refName}</div><div class="text-white/40 text-xs">${r.referrerId}</div></td><td class="px-5 py-3.5"><div class="font-semibold text-white text-sm">${recName}</div><div class="text-white/40 text-xs">${r.referredUserId}</div></td><td class="px-5 py-3.5 text-gold font-semibold text-sm">R${r.commissionAmount || 0}</td><td class="px-5 py-3.5">${statusBadge(r.status==='paid'?'Active':'Pending')}</td><td class="px-5 py-3.5 text-white/40 text-xs">${formatDateLocal(r.createdAt)}</td></tr>`;
+    }).join('') || '<tr><td class="px-5 py-4 text-white/40 text-sm" colspan="5">No referrals yet</td></tr>';
+    document.getElementById('referralsMobile').innerHTML = referrals.map(r => {
+      const referrer = allMembers.find(m => m.id === r.referrerId);
+      const referred = allMembers.find(m => m.id === r.referredUserId);
+      const refName = referrer ? referrer.fullName : r.referrerId.slice(0,8);
+      const recName = referred ? referred.fullName : r.referredUserId.slice(0,8);
+      return `<div class="p-4"><div class="flex justify-between items-center"><span class="font-semibold text-white text-sm">${refName}</span><span class="text-gold text-xs font-semibold">R${r.commissionAmount || 0}</span></div><div class="text-white/40 text-xs mt-0.5">referred ${recName} · ${r.status || 'pending'}</div></div>`;
+    }).join('') || '<div class="p-4 text-white/40 text-sm text-center">No referrals yet</div>';
+  } catch(e) { console.error('loadReferrals error:', e); }
+}
+
+auth.onAuthStateChanged(async (user) => {
+  if(!user) { window.location.href = 'index.html'; return; }
+  const admin = await isAdmin(user.uid);
+  if(!admin) { window.location.href = 'index.html'; return; }
+  loadData();
+});
 </script>
 </body>
 </html>

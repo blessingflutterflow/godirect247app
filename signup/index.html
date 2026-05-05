@@ -13,6 +13,10 @@
   <script>
     tailwind.config={theme:{extend:{colors:{dark:'#191c1f',gold:'#f3cc20','gold-dark':'#c9a800',brand:'#0682B4',surface:'#f4f4f4',teal:'#00a87e',danger:'#e23b4a',muted:'#8d969e',slate:'#505a63'},fontFamily:{display:['Plus Jakarta Sans','sans-serif']}}}}
   </script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  <script src="../js/app.js"></script>
   <style>
     *{-webkit-font-smoothing:antialiased}
     body{font-family:'Inter',sans-serif}
@@ -43,6 +47,18 @@
 
     <!-- STEP 1: Plan Selection -->
     <div id="step1" class="w-full ani1">
+      <!-- Pre-Launch Special Banner -->
+      <div class="bg-gold/[0.06] border border-gold/20 rounded-2xl p-5 mb-6 relative overflow-hidden">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="bg-gold text-dark text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Limited Offer</span>
+          <span class="text-gold/70 text-[10px] font-semibold">Ends 30 May 2026</span>
+        </div>
+        <h3 class="font-display font-bold text-gold text-lg mb-1 tracking-tight">Pre Launch SPECIAL</h3>
+        <p class="text-white/60 text-xs leading-relaxed">
+          <strong class="text-gold">Generosity Reward:</strong> Join, Activate = R650, Gift 2 Families, Activate with R650 x 2 = R1,300 For Them. Be Rewarded With A Cashback Of All Your 3 Activation Fees = R1,950. Plus A Thank Reward Worth R1,050 More. <strong class="text-gold">Total Reward: R3,000</strong> (paid after 6 weeks) including a <strong class="text-white">R10,000 Free Funeral Cover FOR the Whole Year</strong> for All 3 Families.
+        </p>
+      </div>
+
       <h2 class="font-display font-extrabold text-white text-3xl sm:text-4xl mb-2 tracking-tight">Choose your plan</h2>
       <p class="text-white/50 text-sm mb-8">Select the plan type, then the tier that fits your budget.</p>
 
@@ -85,8 +101,16 @@
           <input id="f_id" type="text" inputmode="numeric" maxlength="13" placeholder="13-digit South African ID" class="w-full bg-white/10 border border-white/15 rounded-xl px-4 py-3.5 text-white placeholder-white/30 text-sm transition-all">
         </div>
         <div>
+          <label class="text-white/60 text-xs font-semibold uppercase tracking-wide block mb-2">Phone number</label>
+          <input id="f_phone" type="tel" placeholder="e.g. 071 234 5678" class="w-full bg-white/10 border border-white/15 rounded-xl px-4 py-3.5 text-white placeholder-white/30 text-sm transition-all">
+        </div>
+        <div>
           <label class="text-white/60 text-xs font-semibold uppercase tracking-wide block mb-2">Email address</label>
           <input id="f_email" type="email" placeholder="you@example.com" class="w-full bg-white/10 border border-white/15 rounded-xl px-4 py-3.5 text-white placeholder-white/30 text-sm transition-all">
+        </div>
+        <div>
+          <label class="text-white/60 text-xs font-semibold uppercase tracking-wide block mb-2">Password</label>
+          <input id="f_password" type="password" placeholder="Create a password (min 6 chars)" class="w-full bg-white/10 border border-white/15 rounded-xl px-4 py-3.5 text-white placeholder-white/30 text-sm transition-all">
         </div>
         <div>
           <label class="text-white/60 text-xs font-semibold uppercase tracking-wide block mb-2">Employment status</label>
@@ -205,7 +229,7 @@
 
       <div class="flex gap-3">
         <button onclick="prevStep()" class="flex-shrink-0 border-2 border-white/20 text-white py-4 px-6 rounded-full hover:border-white/40 transition-all text-sm"><i class="ph ph-arrow-left"></i></button>
-        <button onclick="submitApp()" class="flex-1 bg-gold text-dark font-display font-bold py-4 rounded-full hover:bg-gold-dark transition-all">Submit application <i class="ph ph-paper-plane-right ml-1"></i></button>
+        <button id="submitBtn" onclick="submitApp()" class="flex-1 bg-gold text-dark font-display font-bold py-4 rounded-full hover:bg-gold-dark transition-all">Submit application <i class="ph ph-paper-plane-right ml-1"></i></button>
       </div>
     </div>
 
@@ -225,6 +249,26 @@
 <script>
 const PLUS_TIERS = ['Silver Plus','Gold Plus','Diamond Plus','Premier Plus','Prestige Plus','King Plus'];
 const GOLD_TIERS = ['Silver Gold','Gold Gold','Diamond Gold','Premier Gold','Prestige Gold','King Gold','Superior'];
+
+const PLUS_TIER_PRICES = {
+  'Silver Plus': { cover: 'R10,000', fee: 'R650' },
+  'Gold Plus': { cover: 'R15,000', fee: 'R950' },
+  'Diamond Plus': { cover: 'R20,000', fee: 'R1,200' },
+  'Premier Plus': { cover: 'R25,000', fee: 'R1,700' },
+  'Prestige Plus': { cover: 'R25,000', fee: 'R2,200' },
+  'King Plus': { cover: 'R30,000', fee: 'R3,000' },
+  'Superior Plus': { cover: 'R60,000', fee: 'R3,000' }
+};
+
+const GOLD_TIER_PRICES = {
+  'Silver Gold': { cover: 'R10,000', fee: 'R1,550' },
+  'Gold Gold': { cover: 'R15,000', fee: 'R4,900' },
+  'Diamond Gold': { cover: 'R20,000', fee: 'R10,000' },
+  'Premier Gold': { cover: 'R25,000', fee: 'R15,000' },
+  'Prestige Gold': { cover: 'R25,000', fee: 'R20,000' },
+  'King Gold': { cover: 'R30,000', fee: 'R25,000' },
+  'Superior': { cover: 'R60,000', fee: 'R40,000' }
+};
 
 let currentStep = 1;
 let selectedPlan = '';
@@ -253,7 +297,12 @@ function selectPlanType(type) {
   }
   const tiers = type==='plus' ? PLUS_TIERS : GOLD_TIERS;
   const grid = document.getElementById('tierGrid');
-  grid.innerHTML = tiers.map(t => `<button onclick="selectTier('${t}',this)" class="tier-btn border border-white/15 rounded-xl py-3 px-3 text-white/60 text-xs font-semibold hover:border-gold/40 hover:text-white transition-all">${t}</button>`).join('');
+  grid.innerHTML = tiers.map(t => {
+    const prices = type === 'plus' ? PLUS_TIER_PRICES : GOLD_TIER_PRICES;
+    const price = prices[t];
+    const priceHtml = price ? `<div class="text-[10px] text-white/50 mt-1 leading-tight">${price.cover} cover · ${price.fee}</div>` : '';
+    return `<button onclick="selectTier('${t}',this)" class="tier-btn border border-white/15 rounded-xl py-3 px-3 text-white/60 text-xs font-semibold hover:border-gold/40 hover:text-white transition-all text-left">${t}${priceHtml}</button>`;
+  }).join('');
   document.getElementById('tierSection').classList.remove('hidden');
   document.getElementById('step1Next').classList.add('hidden');
 }
@@ -301,7 +350,9 @@ function nextStep() {
     const name=document.getElementById('f_name').value.trim();
     const id=document.getElementById('f_id').value.trim();
     const email=document.getElementById('f_email').value.trim();
+    const password=document.getElementById('f_password').value;
     if(!name||!id||!email) { alert('Please fill in your name, ID number and email.'); return; }
+    if(!password || password.length < 6) { alert('Password must be at least 6 characters.'); return; }
   }
   if(currentStep===4) return;
   document.getElementById('step'+currentStep).classList.add('hidden');
@@ -332,6 +383,7 @@ function buildReview() {
     ['Plan', selectedTier + ' (' + selectedPlan.charAt(0).toUpperCase()+selectedPlan.slice(1)+' Plan)'],
     ['Applicant', document.getElementById('f_name').value],
     ['ID Number', document.getElementById('f_id').value],
+    ['Phone', document.getElementById('f_phone').value || 'Not provided'],
     ['Email', document.getElementById('f_email').value],
     ['Employment', document.getElementById('f_employment').value || 'Not specified'],
     ['Referred by', document.getElementById('f_referral').value || 'N/A'],
@@ -347,13 +399,92 @@ function buildReview() {
     </div>`).join('<div class="border-t border-white/10"></div>');
 }
 
-function submitApp() {
-  if(!document.getElementById('tcCheck').checked) { alert('Please accept the terms and conditions.'); return; }
-  document.getElementById('step4').classList.add('hidden');
-  document.getElementById('stepSuccess').classList.remove('hidden');
-  document.getElementById('progressBar').style.width='100%';
-  document.getElementById('stepLabel').textContent='Done';
-  window.scrollTo(0,0);
+async function submitApp() {
+  try {
+    if(!document.getElementById('tcCheck').checked) { alert('Please accept the terms and conditions.'); return; }
+
+    const emailEl = document.getElementById('f_email');
+    const passEl = document.getElementById('f_password');
+    const nameEl = document.getElementById('f_name');
+    const idEl = document.getElementById('f_id');
+    const phoneEl = document.getElementById('f_phone');
+
+    if(!emailEl || !passEl || !nameEl || !idEl) {
+      alert('Form is incomplete. Please go back and fill in all required fields.');
+      return;
+    }
+
+    const email = emailEl.value.trim();
+    const password = passEl.value;
+    if(!email || !password) { alert('Email and password are required.'); return; }
+
+    console.log('Submitting signup for:', email);
+
+    const dependents = [];
+    document.querySelectorAll('#dependentsContainer > div').forEach((div) => {
+      const name = div.querySelector('[data-field="name"]')?.value || '';
+      const relation = div.querySelector('[data-field="relation"]')?.value || '';
+      const id = div.querySelector('[data-field="id"]')?.value || '';
+      if(name) dependents.push({name, relation, id});
+    });
+
+    const userData = {
+      fullName: nameEl.value.trim(),
+      phone: phoneEl ? phoneEl.value.trim() : '',
+      idNumber: idEl.value.trim(),
+      employmentStatus: document.getElementById('f_employment')?.value || '',
+      source: document.getElementById('f_source')?.value || '',
+      referredByName: document.getElementById('f_referral')?.value.trim() || '',
+      planType: selectedPlan,
+      tier: selectedTier,
+      beneficiary: document.getElementById('ben_name')?.value ? {
+        name: document.getElementById('ben_name').value,
+        idNumber: document.getElementById('ben_id')?.value || '',
+        relation: document.getElementById('ben_relation')?.value || ''
+      } : null,
+      spouse: document.getElementById('sp_name')?.value ? {
+        firstName: document.getElementById('sp_name').value,
+        surname: document.getElementById('sp_surname')?.value || '',
+        idNumber: document.getElementById('sp_id')?.value || '',
+        cell: document.getElementById('sp_cell')?.value || ''
+      } : null,
+      dependents: dependents,
+      extendedFamily: document.getElementById('ext_name')?.value ? {
+        name: document.getElementById('ext_name').value,
+        idNumber: document.getElementById('ext_id')?.value || ''
+      } : null
+    };
+
+    const btn = document.getElementById('submitBtn');
+    const originalText = btn ? btn.innerHTML : 'Submit application';
+    if(btn) { btn.disabled = true; btn.innerHTML = 'Submitting...'; }
+
+    const timeoutMs = 30000;
+    const result = await Promise.race([
+      signUpUser(email, password, userData),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out. Please check your internet connection or try again.')), timeoutMs))
+    ]);
+    console.log('signUpUser result:', result);
+
+    if(result.success) {
+      document.getElementById('step4').classList.add('hidden');
+      document.getElementById('stepSuccess').classList.remove('hidden');
+      document.getElementById('progressBar').style.width='100%';
+      document.getElementById('stepLabel').textContent='Done';
+      window.scrollTo(0,0);
+    } else {
+      alert('Error: ' + (result.error || 'Could not create account'));
+      if(btn) { btn.disabled = false; btn.innerHTML = originalText; }
+    }
+  } catch(err) {
+    console.error('submitApp error:', err);
+    alert('Unexpected error: ' + (err.message || err));
+    const btn = document.getElementById('submitBtn');
+    if(btn) { btn.disabled = false; btn.innerHTML = 'Submit application <i class="ph ph-paper-plane-right ml-1"></i>'; }
+  } finally {
+    const btn = document.getElementById('submitBtn');
+    if(btn) { btn.disabled = false; }
+  }
 }
 </script>
 </body>

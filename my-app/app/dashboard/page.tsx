@@ -13,13 +13,14 @@ import { db } from '@/lib/firebase';
 import {
   logoutUser, markNotificationRead, formatDate,
   recordActivationPayment, getReferralStats, isCampaignActive,
-  requestWithdrawal, getUserWithdrawal,
+  requestWithdrawal, getUserWithdrawal, recordLinkShare, upgradeGenerosityStep,
+  getUserTrio,
 } from '@/lib/firebase-service';
 import type { ReferralStats } from '@/lib/firebase-service';
-import type { Withdrawal } from '@/lib/types';
+import type { Withdrawal, Trio } from '@/lib/types';
 import type { AppNotification, UserData } from '@/lib/types';
 import type { Timestamp } from 'firebase/firestore';
-import { PLUS_TIERS, GOLD_TIERS, ACTIVATION_AMOUNT } from '@/lib/constants';
+import { PLUS_TIERS, GOLD_TIERS, ACTIVATION_AMOUNT, SHARE_MIN_WITHDRAWAL, GENEROSITY_STEPS } from '@/lib/constants';
 
 
 function toDate(value: Timestamp | null | undefined): Date | null {
@@ -80,6 +81,7 @@ export default function DashboardPage() {
   const [bankDetails, setBankDetails] = useState({ bankName: '', accountNumber: '', accountHolder: '', accountType: 'Cheque' as 'Cheque' | 'Savings' });
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState('');
+  const [userTrio, setUserTrio] = useState<Trio | null>(null);
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
@@ -105,6 +107,7 @@ export default function DashboardPage() {
       refreshUserData();
       getReferralStats(user.uid).then(setReferralStats);
       getUserWithdrawal(user.uid).then(setPendingWithdrawal);
+      getUserTrio(user.uid).then(setUserTrio);
     }
   }, [user, refreshUserData]);
 
@@ -151,8 +154,16 @@ export default function DashboardPage() {
       return;
     }
     const u = userData as UserData;
-    const amount = u.totalEarnings || 0;
-    if (amount <= 0) return;
+    const refEarnings = u.totalEarnings || 0;
+    const shareEarnings = (u.shareEarnings || 0) >= SHARE_MIN_WITHDRAWAL ? (u.shareEarnings || 0) : 0;
+    const amount = refEarnings + shareEarnings;
+
+    if (amount <= 0) {
+      if ((u.shareEarnings || 0) > 0 && (u.shareEarnings || 0) < SHARE_MIN_WITHDRAWAL) {
+        setWithdrawError(`Link share earnings require a minimum of R${SHARE_MIN_WITHDRAWAL} to withdraw.`);
+      }
+      return;
+    }
     setWithdrawing(true);
     const result = await requestWithdrawal(user.uid, u.fullName, amount, { bankName, accountNumber, accountHolder, accountType });
     if (!result.success) {
@@ -170,7 +181,20 @@ export default function DashboardPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+    if (user) recordLinkShare(user.uid);
   }
+
+  function handleShareClick() {
+    if (user) recordLinkShare(user.uid);
+  }
+
+  async function handleUpgrade() {
+    if (!user) return;
+    const res = await upgradeGenerosityStep(user.uid);
+    if (!res.success) alert(res.error);
+    else refreshUserData();
+  }
+
 
   if (loading) {
     return (
@@ -180,7 +204,30 @@ export default function DashboardPage() {
     );
   }
 
-  if (!user || !userData) return null;
+  if (!user || !userData) {
+    return (
+      <div className="min-h-screen bg-[#111315] flex flex-col items-center justify-center p-6 text-center">
+        <h2 className="text-white font-bold text-xl mb-2">Connection Issue</h2>
+        <p className="text-white/40 text-sm mb-6 max-w-xs">
+          We couldn't load your profile. This is usually due to a network issue or the database being offline.
+        </p>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => window.location.reload()}
+            className="bg-[#f3cc20] text-dark font-bold px-6 py-2 rounded-full text-sm"
+          >
+            Retry
+          </button>
+          <button 
+            onClick={handleSignOut}
+            className="border border-white/10 text-white/40 px-6 py-2 rounded-full text-sm hover:text-white"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const u = userData as UserData;
   const activationDate = toDate(u.activationDate);
@@ -395,6 +442,85 @@ export default function DashboardPage() {
           </p>
         </div>
 
+          {/* Generosity Rewards Roadmap */}
+          <div className="bg-gradient-to-br from-[#f3cc20]/20 to-transparent border border-[#f3cc20]/30 rounded-2xl p-5 mb-4 shadow-lg shadow-[#f3cc20]/5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-[#f3cc20] flex items-center justify-center">
+                <TrendUp size={18} weight="bold" className="text-dark" />
+              </div>
+              <div>
+                <h3 className="font-display font-extrabold text-white text-base leading-none">Steps To The Top</h3>
+                <p className="text-[#f3cc20] text-[10px] font-bold uppercase tracking-widest mt-1">Generosity Roadmap</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-white/40 text-[10px] uppercase font-semibold mb-1">Current Status</p>
+                  <p className="text-white font-display font-bold text-lg">{u.generosityStep ? GENEROSITY_STEPS[u.generosityStep - 1].name : 'Not Started'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-white/40 text-[10px] uppercase font-semibold mb-1">Harvest Balance</p>
+                  <p className="text-[#f3cc20] font-display font-bold text-2xl leading-none">R{(u.harvestBalance || 0).toLocaleString()}</p>
+                </div>
+              </div>
+
+              {/* Team / Trio */}
+              {userTrio && (
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <p className="text-white/40 text-[10px] uppercase font-semibold mb-2">My Team</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full bg-[#f3cc20]/20 flex items-center justify-center">
+                      <User size={12} className="text-[#f3cc20]" />
+                    </div>
+                    <span className="text-white text-xs font-semibold">{userTrio.leaderName} (Leader)</span>
+                  </div>
+                  <div className="space-y-1.5 pl-1">
+                    {userTrio.memberNames.map((name, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#00a87e]" />
+                        <span className="text-white/70 text-xs">{name}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-white/30 text-[9px] mt-2">Team step: {userTrio.step} of 9</p>
+                </div>
+              )}
+
+              {/* Downstream Rewards */}
+              {(u.downstreamRewards || 0) > 0 && (
+                <div className="bg-[#00a87e]/10 border border-[#00a87e]/20 rounded-xl p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-[#00a87e] text-[10px] uppercase font-semibold">Team Rewards</p>
+                    <p className="text-white/60 text-[10px]">From members reaching Diamond Gold</p>
+                  </div>
+                  <p className="text-[#00a87e] font-display font-bold text-lg">R{(u.downstreamRewards || 0).toLocaleString()}</p>
+                </div>
+              )}
+
+              {u.generosityStep !== undefined && u.generosityStep < GENEROSITY_STEPS.length && (
+                <div className="pt-2">
+                  <p className="text-white/60 text-xs mb-3 italic">
+                    "Let us not become weary in doing good..."
+                  </p>
+                  <button 
+                    onClick={handleUpgrade}
+                    className="w-full bg-[#f3cc20] hover:bg-[#f3cc20]/90 text-dark font-display font-black py-3 rounded-xl transition-all shadow-xl shadow-[#f3cc20]/20 flex items-center justify-center gap-2"
+                  >
+                    <span>Seed {GENEROSITY_STEPS[u.generosityStep].name}</span>
+                    <span className="text-[10px] bg-dark/10 px-2 py-0.5 rounded-md">R{GENEROSITY_STEPS[u.generosityStep].seed}</span>
+                  </button>
+                  <p className="text-white/30 text-[10px] text-center mt-2 uppercase tracking-tighter">
+                    Move to the next level and increase your harvest
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Referral Hub Card */}
+
         {/* Referral Hub */}
         <div className="ani3 bg-white/[0.05] border border-white/10 rounded-2xl p-5 mb-4">
           <div className="flex items-center justify-between mb-4">
@@ -428,11 +554,43 @@ export default function DashboardPage() {
               href={waLink}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={handleShareClick}
               className="flex-shrink-0 w-10 h-10 mt-auto bg-[#25D366]/10 border border-[#25D366]/20 rounded-xl flex items-center justify-center hover:bg-[#25D366]/20 transition-all"
               title="Share on WhatsApp"
             >
               <WhatsappLogo size={16} className="text-[#25D366]" />
             </a>
+          </div>
+
+          {/* Generosity Reward Stats */}
+          <div className="bg-[#f3cc20]/5 border border-[#f3cc20]/20 rounded-xl p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-white font-semibold text-xs uppercase tracking-wider">Generosity Rewards</p>
+              <span className="text-[#f3cc20] text-[10px] font-bold bg-[#f3cc20]/10 px-2 py-0.5 rounded-full">R0.10 per share</span>
+            </div>
+            <div className="flex justify-between items-end">
+              <div>
+                <p className="text-white/40 text-[10px] mb-0.5">Total Shares</p>
+                <p className="font-display font-bold text-white text-xl leading-none">{u.shareCount || 0}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-white/40 text-[10px] mb-0.5">Share Earnings</p>
+                <p className="font-display font-bold text-[#f3cc20] text-xl leading-none">R{(u.shareEarnings || 0).toLocaleString()}</p>
+              </div>
+            </div>
+            {u.shareEarnings && u.shareEarnings < SHARE_MIN_WITHDRAWAL ? (
+              <div className="mt-3 h-1 bg-white/5 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-[#f3cc20]/40 rounded-full" 
+                  style={{ width: `${Math.min(100, (u.shareEarnings / SHARE_MIN_WITHDRAWAL) * 100)}%` }} 
+                />
+              </div>
+            ) : null}
+            {u.shareEarnings && u.shareEarnings < SHARE_MIN_WITHDRAWAL && (
+              <p className="text-white/30 text-[9px] mt-1.5 text-center">
+                R{SHARE_MIN_WITHDRAWAL} minimum withdrawal · R{(SHARE_MIN_WITHDRAWAL - u.shareEarnings).toFixed(2)} to go
+              </p>
+            )}
           </div>
 
           {/* Stats */}
@@ -519,9 +677,14 @@ export default function DashboardPage() {
                 <Coins size={20} className="text-[#00a87e]" />
                 <span className="font-display font-bold text-white text-base">Your Earnings</span>
               </div>
-              <span className="font-display font-bold text-[#f3cc20] text-xl">
-                R{(u.totalEarnings || 0).toLocaleString()}
-              </span>
+              <div className="text-right">
+                <span className="font-display font-bold text-[#f3cc20] text-xl block leading-none">
+                  R{((u.totalEarnings || 0) + (u.shareEarnings || 0)).toLocaleString()}
+                </span>
+                <span className="text-white/30 text-[10px]">
+                  R{u.totalEarnings || 0} Ref · R{u.shareEarnings || 0} Share
+                </span>
+              </div>
             </div>
 
             {pendingWithdrawal ? (
@@ -594,7 +757,7 @@ export default function DashboardPage() {
                     disabled={withdrawing}
                     className="py-3 rounded-xl bg-[#00a87e] text-white font-bold text-sm hover:bg-[#008c69] transition-all disabled:opacity-60"
                   >
-                    {withdrawing ? 'Submitting…' : `Withdraw R${(u.totalEarnings || 0).toLocaleString()}`}
+                    {withdrawing ? 'Submitting…' : `Withdraw R${((u.totalEarnings || 0) + ((u.shareEarnings || 0) >= SHARE_MIN_WITHDRAWAL ? (u.shareEarnings || 0) : 0)).toLocaleString()}`}
                   </button>
                 </div>
               </div>

@@ -60,7 +60,29 @@ export interface UserData {
   applicationStatus: string;
   status?: 'Active' | 'Pending' | 'Lapsed';
   createdAt?: Timestamp;
+  shareCount?: number;
+  shareEarnings?: number;
+  lastShareDate?: Timestamp | null;
+  dailyShareCount?: number;
+  generosityStep?: number;
+  harvestBalance?: number;
+  trioMembers?: string[];
+  trioId?: string | null;
+  fundedBy?: string | null;
+  downstreamRewards?: number;
   updatedAt?: Timestamp;
+}
+
+export interface Trio {
+  id: string;
+  leaderId: string;
+  leaderName: string;
+  memberIds: string[];
+  memberNames: string[];
+  status: 'forming' | 'active' | 'complete';
+  step: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
 export interface Payment {
@@ -79,7 +101,7 @@ export interface Payment {
 export interface AppNotification {
   id: string;
   userId: string;
-  type: 'joined' | 'paid' | 'tier_up' | 'reward_ready';
+  type: 'joined' | 'paid' | 'tier_up' | 'reward_ready' | 'share_reward';
   message: string;
   read: boolean;
   createdAt: Timestamp;

@@ -8,11 +8,11 @@ import { auth } from '@/lib/firebase';
 import {
   checkIsAdmin, getAllMembers, getPendingPayments, getAllRewards, getAllReferrals,
   verifyPayment, updateMemberStatus, logoutUser, formatDate,
-  getAllWithdrawals, processWithdrawal, releaseReward,
+  getAllWithdrawals, processWithdrawal, releaseReward, getAllTrios,
 } from '@/lib/firebase-service';
-import type { UserData, Payment, Reward, Referral, Withdrawal } from '@/lib/types';
+import type { UserData, Payment, Reward, Referral, Withdrawal, Trio } from '@/lib/types';
 
-type TabId = 'members' | 'payments' | 'rewards' | 'referrals' | 'withdrawals';
+type TabId = 'members' | 'payments' | 'rewards' | 'referrals' | 'withdrawals' | 'teams';
 type StatusFilter = '' | 'Active' | 'Pending' | 'Lapsed';
 type PlanFilter = '' | 'Plus' | 'Gold';
 
@@ -49,6 +49,7 @@ export default function AdminDashboardPage() {
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [trios, setTrios] = useState<Trio[]>([]);
   const [tab, setTab] = useState<TabId>('members');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
@@ -91,9 +92,14 @@ export default function AdminDashboardPage() {
     if (result.success && result.withdrawals) setWithdrawals(result.withdrawals);
   }, []);
 
+  const loadTrios = useCallback(async () => {
+    const result = await getAllTrios();
+    if (result.success && result.trios) setTrios(result.trios);
+  }, []);
+
   useEffect(() => {
-    if (ready) { loadData(); loadPayments(); loadRewards(); loadReferrals(); loadWithdrawals(); }
-  }, [ready, loadData, loadPayments, loadRewards, loadReferrals, loadWithdrawals]);
+    if (ready) { loadData(); loadPayments(); loadRewards(); loadReferrals(); loadWithdrawals(); loadTrios(); }
+  }, [ready, loadData, loadPayments, loadRewards, loadReferrals, loadWithdrawals, loadTrios]);
 
   async function handleVerifyPayment(paymentId: string) {
     const user = auth.currentUser;
@@ -192,6 +198,7 @@ export default function AdminDashboardPage() {
             { id: 'rewards', label: `Rewards${rewards.length ? ` (${rewards.length})` : ''}` },
             { id: 'referrals', label: `Referrals${referrals.length ? ` (${referrals.length})` : ''}` },
             { id: 'withdrawals', label: `Withdrawals${withdrawals.filter(w => w.status === 'pending').length ? ` (${withdrawals.filter(w => w.status === 'pending').length})` : ''}` },
+            { id: 'teams', label: `Teams${trios.length ? ` (${trios.length})` : ''}` },
           ] as { id: TabId; label: string }[]).map(({ id, label }) => (
             <button
               key={id}
@@ -524,6 +531,52 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
+        {/* Teams tab */}
+        {tab === 'teams' && (
+          <div className="ani4 bg-[#191c1f] border border-white/10 rounded-2xl overflow-hidden">
+            <div className="p-5 border-b border-white/10 flex items-center justify-between">
+              <h3 className="font-display font-bold text-white text-base">Generosity Teams (Trios)</h3>
+              <span className="bg-[#f3cc20]/20 text-[#f3cc20] text-xs font-semibold px-2.5 py-1 rounded-full">
+                {trios.length} total
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/10">
+                    {['Leader', 'Members', 'Step', 'Status', 'Created'].map((h) => (
+                      <th key={h} className="text-left text-white/30 text-xs uppercase tracking-wide font-semibold px-5 py-3">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {trios.length === 0 ? (
+                    <tr><td className="px-5 py-4 text-white/40 text-sm" colSpan={5}>No teams formed yet</td></tr>
+                  ) : trios.map((t) => (
+                    <tr key={t.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="font-semibold text-white text-sm">{t.leaderName}</div>
+                        <div className="text-white/40 text-xs">{t.leaderId.slice(0, 8)}</div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="text-white/70 text-sm">{t.memberNames.join(', ')}</div>
+                        <div className="text-white/40 text-xs">{t.memberIds.length} members</div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-[#f3cc20] font-semibold text-sm">{t.step} / 9</span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <StatusBadge status={t.status === 'active' ? 'Active' : t.status === 'complete' ? 'Active' : 'Pending'} />
+                      </td>
+                      <td className="px-5 py-3.5 text-white/40 text-xs">{formatDate(t.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* Member drawer */}
@@ -552,8 +605,16 @@ export default function AdminDashboardPage() {
                   ['Applied', <span key="a" className="text-white/70">{formatDate(drawer.createdAt)}</span>],
                   ['Dependents', <span key="d" className="text-white/70">{(drawer.dependents || []).length}</span>],
                   ['Referral', <span key="r" className="text-white/70">{drawer.referredByName || (drawer.referredBy ? 'Yes' : 'None')}</span>],
+                  ['Generosity Step', <span key="gs" className="text-white">{drawer.generosityStep || 0} / 9</span>],
+                  ['Harvest Balance', <span key="hb" className="text-[#f3cc20] font-semibold">R{drawer.harvestBalance || 0}</span>],
                   ['Earnings', <span key="earn" className="text-[#f3cc20] font-semibold">R{drawer.totalEarnings || 0}</span>],
+                  ['Link Shares', <span key="shares" className="text-white/70">{drawer.shareCount || 0}</span>],
+                  ['Share Earnings', <span key="shareEarn" className="text-[#f3cc20] font-semibold">R{drawer.shareEarnings || 0}</span>],
+                  ['Team ID', <span key="tid" className="text-white/70">{drawer.trioId ? drawer.trioId.slice(0, 12) + '…' : 'None'}</span>],
+                  ['Funded By', <span key="fb" className="text-white/70">{drawer.fundedBy ? drawer.fundedBy.slice(0, 12) + '…' : 'Self-funded'}</span>],
+                  ['Downstream Rewards', <span key="dr" className="text-[#00a87e] font-semibold">R{drawer.downstreamRewards || 0}</span>],
                 ].map(([k, v]) => (
+
                   <div key={k as string} className="flex items-center justify-between gap-4">
                     <span className="text-white/40 text-xs uppercase tracking-wide font-semibold">{k}</span>
                     {v}
