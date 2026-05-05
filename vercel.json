@@ -1,5 +1,4 @@
 {
-  "rootDirectory": "my-app",
   "cleanUrls": true,
   "trailingSlash": false,
   "headers": [
