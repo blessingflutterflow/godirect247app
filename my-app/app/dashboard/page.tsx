@@ -84,6 +84,7 @@ export default function DashboardPage() {
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState('');
   const [userTrio, setUserTrio] = useState<Trio | null>(null);
+  const [showYocoModal, setShowYocoModal] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
@@ -162,8 +163,9 @@ export default function DashboardPage() {
     router.push('/');
   }
 
-  async function handleActivate() {
+  async function handleActivateConfirm() {
     if (!user || !userData) return;
+    setShowYocoModal(false);
     setActivationError('');
     setActivating(true);
     const u = userData as UserData;
@@ -391,6 +393,39 @@ export default function DashboardPage() {
 
       {notifOpen && <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />}
 
+      {showYocoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/70">
+          <div className="bg-[#1e2226] border border-white/15 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-[#0682B4]/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <CreditCard size={20} className="text-[#0682B4]" />
+              </div>
+              <div>
+                <p className="font-display font-bold text-white text-base">Yoco Secure Checkout</p>
+                <p className="text-[#0682B4] text-xs font-semibold">New Checkout API · v2</p>
+              </div>
+            </div>
+            <p className="text-white/60 text-sm leading-relaxed mb-5">
+              You will be redirected to <span className="text-white font-semibold">Yoco&apos;s secure hosted payment page</span> to complete your payment. Once done, you&apos;ll be brought back here automatically.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowYocoModal(false)}
+                className="flex-1 border border-white/15 text-white/50 font-semibold py-3 rounded-xl text-sm hover:bg-white/5 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleActivateConfirm}
+                className="flex-1 bg-[#f3cc20] text-[#191c1f] font-display font-bold py-3 rounded-xl text-sm hover:bg-[#c9a800] transition-all flex items-center justify-center gap-2"
+              >
+                Proceed <ArrowRight size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="pt-14 max-w-lg mx-auto px-4 py-6">
         {/* Greeting */}
         <div className="ani1 mb-6">
@@ -420,7 +455,7 @@ export default function DashboardPage() {
               </p>
             )}
             <button
-              onClick={handleActivate}
+              onClick={() => setShowYocoModal(true)}
               disabled={activating}
               className="w-full bg-[#f3cc20] text-[#191c1f] font-display font-bold py-3.5 rounded-xl hover:bg-[#c9a800] transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
             >
@@ -428,7 +463,7 @@ export default function DashboardPage() {
                 <>Activate Now — R{fee.toLocaleString()} <ArrowRight size={16} /></>
               )}
             </button>
-            <p className="text-white/30 text-xs text-center mt-2">Secured by Yoco · Card payments accepted</p>
+            <p className="text-white/30 text-xs text-center mt-2">Secured by Yoco Checkout · Card payments accepted</p>
           </div>
         )}
 
