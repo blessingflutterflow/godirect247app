@@ -496,7 +496,7 @@ export async function processWithdrawal(
       if (userSnap.exists() && userSnap.data().phone) {
         sendSMSNotification(
           userSnap.data().phone as string,
-          `GoDirect247: Your R${w.amount} withdrawal was not approved. Please contact us on 078 018 7995 for assistance.`
+          `GoDirect247: Your R${w.amount} withdrawal was not approved. Please contact us on +27 78 018 7995 for assistance.`
         );
       }
       await createNotification(w.userId, 'paid', `Your withdrawal of R${w.amount} was not approved. Please contact support.`);

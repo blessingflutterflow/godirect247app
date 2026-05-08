@@ -44,7 +44,7 @@ export default async function HomePage({
             <div className="ani1 inline-flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-4 py-1.5 mb-8">
               <ShieldCheck className="text-[#f3cc20]" size={14} />
               <span className="text-white/70 text-xs font-medium tracking-wide">
-                FSP Registered &middot; Zarkudu Group &middot; NCR 26091
+                FSP Licence JR 50841 &middot; Zarkudu Group
               </span>
             </div>
             <h1 className="ani2 font-display text-white text-5xl sm:text-6xl md:text-[78px] font-extrabold leading-none tracking-tight mb-6">
@@ -162,7 +162,7 @@ export default async function HomePage({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             {[
               { icon: <Users size={24} className="text-[#0682B4]" />, stat: '1 000+', label: 'Families covered' },
-              { icon: <Certificate size={24} className="text-[#0682B4]" />, stat: 'FSP Reg.', label: 'NCR 26091' },
+              { icon: <Certificate size={24} className="text-[#0682B4]" />, stat: 'FSP Lic.', label: 'JR 50841' },
               { icon: <Clock size={24} className="text-[#0682B4]" />, stat: '24–48 hrs', label: 'Claim payout' },
               { icon: <Coins size={24} className="text-[#0682B4]" />, stat: 'Cashback', label: 'Real rewards' },
             ].map(({ icon, stat, label }) => (
@@ -287,8 +287,8 @@ export default async function HomePage({
               {
                 icon: <Certificate size={24} className="text-[#191c1f]" />,
                 iconBg: 'bg-gray-100',
-                title: 'FSP Registered',
-                body: 'Fully regulated. GoDirect247 is a division of Zarkudu Group, NCR 26091.',
+                title: 'FSP Licensed',
+                body: 'Fully regulated. GoDirect247 is a division of Zarkudu Group, FSP Licence JR 50841.',
               },
             ].map(({ icon, iconBg, title, body }) => (
               <div
@@ -325,10 +325,10 @@ export default async function HomePage({
               Get started now
             </Link>
             <a
-              href="tel:0780187995"
+              href="tel:+27780187995"
               className="border-2 border-white/25 text-white font-medium text-base px-10 py-4 rounded-full hover:border-white/50 hover:bg-white/5 transition-all flex items-center justify-center gap-2"
             >
-              <Phone size={16} /> 078 018 7995
+              <Phone size={16} /> +27 78 018 7995
             </a>
           </div>
         </div>

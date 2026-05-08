@@ -11,7 +11,7 @@ export function Footer() {
               Go<span className="text-[#f3cc20]">Direct</span>247
             </div>
             <p className="text-white/40 text-sm leading-relaxed max-w-xs">
-              A division of Zarkudu Group. FSP Registered, NCR 26091.
+              A division of Zarkudu Group. FSP Licence JR 50841.
             </p>
           </div>
 
@@ -42,18 +42,18 @@ export function Footer() {
             <ul className="space-y-2.5 text-sm text-white/50">
               <li className="flex items-center gap-2">
                 <Phone size={14} className="text-white/30" />
-                078 018 7995
+                +27 78 018 7995
               </li>
               <li className="flex items-center gap-2">
                 <WhatsappLogo size={14} className="text-white/30" />
-                067 489 1416 (WhatsApp)
+                +27 78 018 7995 (WhatsApp)
               </li>
             </ul>
           </div>
         </div>
 
         <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row justify-between gap-3 text-xs text-white/30">
-          <span>&copy; 2026 GoDirect247 &middot; Zarkudu Group &middot; FSP Registered &middot; NCR 26091</span>
+          <span>&copy; 2026 GoDirect247 &middot; Zarkudu Group &middot; FSP Licence JR 50841</span>
           <span>Platform v2.0</span>
         </div>
       </div>

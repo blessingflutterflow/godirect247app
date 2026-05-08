@@ -834,12 +834,12 @@ export default function DashboardPage() {
         {/* Quick actions */}
         <div className="ani4 grid grid-cols-2 gap-3 mb-4">
           <a
-            href="tel:0780187995"
+            href="tel:+27780187995"
             className="bg-white/[0.05] border border-white/10 rounded-2xl p-4 text-left hover:border-white/20 transition-all"
           >
             <PhoneCall size={24} className="text-sky-300 mb-3 block" />
             <p className="font-display font-bold text-white text-sm">Contact support</p>
-            <p className="text-white/40 text-xs mt-0.5">078 018 7995</p>
+            <p className="text-white/40 text-xs mt-0.5">+27 78 018 7995</p>
           </a>
           <button
             onClick={() => copyReferralLink(referralLink)}
