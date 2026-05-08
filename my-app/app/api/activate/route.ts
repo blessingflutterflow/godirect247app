@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+function getBaseUrl(request: NextRequest): string {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  const host = request.headers.get('host') || '';
+  const proto = host.startsWith('localhost') ? 'http' : 'https';
+  return `${proto}://${host}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { amountInCents, tier } = await request.json();
@@ -13,7 +20,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Payment service not configured' }, { status: 500 });
     }
 
-    const origin = request.headers.get('origin') || 'https://godirect247.co.za';
+    const base = getBaseUrl(request);
 
     const response = await fetch('https://payments.yoco.com/api/checkouts', {
       method: 'POST',
@@ -24,15 +31,19 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         amount: amountInCents,
         currency: 'ZAR',
-        successUrl: `${origin}/dashboard?payment=success`,
-        cancelUrl: `${origin}/dashboard?payment=cancelled`,
+        successUrl: `${base}/dashboard?payment=success`,
+        cancelUrl: `${base}/dashboard?payment=cancelled`,
         metadata: { tier: tier || 'unknown' },
       }),
     });
 
     const data = await response.json();
     if (!response.ok) {
-      return NextResponse.json({ error: data.message || 'Failed to create checkout' }, { status: 400 });
+      console.error('[activate] Yoco error:', JSON.stringify(data));
+      return NextResponse.json(
+        { error: data.message || data.displayMessage || 'Failed to create checkout' },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({ redirectUrl: data.redirectUrl, checkoutId: data.id });
