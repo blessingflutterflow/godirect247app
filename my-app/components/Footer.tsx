@@ -46,7 +46,7 @@ export function Footer() {
               </li>
               <li className="flex items-center gap-2">
                 <WhatsappLogo size={14} className="text-white/30" />
-                +27 78 018 7995 (WhatsApp)
+                078 063 8753 (WhatsApp)
               </li>
             </ul>
           </div>

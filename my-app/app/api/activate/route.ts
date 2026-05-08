@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { token, amountInCents } = await request.json();
+    const { amountInCents, tier } = await request.json();
 
-    if (!token || !amountInCents) {
-      return NextResponse.json({ error: 'Missing token or amount' }, { status: 400 });
+    if (!amountInCents) {
+      return NextResponse.json({ error: 'Missing amount' }, { status: 400 });
     }
 
     const secret = process.env.YOCO_SECRET_KEY;
@@ -13,29 +13,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Payment service not configured' }, { status: 500 });
     }
 
-    const response = await fetch('https://online.yoco.com/v1/charges/', {
+    const origin = request.headers.get('origin') || 'https://godirect247.co.za';
+
+    const response = await fetch('https://payments.yoco.com/api/checkouts', {
       method: 'POST',
       headers: {
-        'X-Auth-Secret-Key': secret,
-        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/json',
       },
-      body: new URLSearchParams({
-        token,
-        amountInCents: String(amountInCents),
+      body: JSON.stringify({
+        amount: amountInCents,
         currency: 'ZAR',
-      }).toString(),
+        successUrl: `${origin}/dashboard?payment=success`,
+        cancelUrl: `${origin}/dashboard?payment=cancelled`,
+        metadata: { tier: tier || 'unknown' },
+      }),
     });
 
     const data = await response.json();
-
-    if (!response.ok || data.status !== 'successful') {
-      return NextResponse.json(
-        { error: data.displayMessage || data.errorCode || 'Payment failed' },
-        { status: 400 }
-      );
+    if (!response.ok) {
+      return NextResponse.json({ error: data.message || 'Failed to create checkout' }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true, chargeId: data.id });
+    return NextResponse.json({ redirectUrl: data.redirectUrl, checkoutId: data.id });
   } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }

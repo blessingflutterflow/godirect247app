@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Bell, User, Coins, Users, PhoneCall, ShareNetwork,
   CheckCircle, Warning, SignOut, TrendUp, Gift, UserPlus,
@@ -68,7 +68,9 @@ function TierProgressBar({ stats }: { stats: ReferralStats }) {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, userData, loading, refreshUserData } = useAuth();
+  const verifyingRef = useRef(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -112,12 +114,37 @@ export default function DashboardPage() {
   }, [user, refreshUserData]);
 
   useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://js.yoco.com/sdk/v1/yoco-sdk-web.js';
-    script.async = true;
-    document.body.appendChild(script);
-    return () => { document.body.removeChild(script); };
-  }, []);
+    const payment = searchParams.get('payment');
+    const checkoutId = localStorage.getItem('yoco_checkout_id');
+    if (payment !== 'success' || !checkoutId || !user || verifyingRef.current) return;
+    verifyingRef.current = true;
+    setActivating(true);
+    setActivationError('');
+
+    (async () => {
+      try {
+        const res = await fetch('/api/activate/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ checkoutId }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.paid) {
+          setActivationError(data.error || 'Payment could not be confirmed. Please contact support.');
+        } else {
+          const fee = Number(localStorage.getItem('yoco_activation_fee') || 0);
+          await recordActivationPayment(user.uid, fee, data.paymentId);
+          await Promise.all([refreshUserData(), getReferralStats(user.uid).then(setReferralStats)]);
+        }
+      } catch {
+        setActivationError('Something went wrong confirming your payment. Please contact support.');
+      }
+      localStorage.removeItem('yoco_checkout_id');
+      localStorage.removeItem('yoco_activation_fee');
+      setActivating(false);
+      router.replace('/dashboard');
+    })();
+  }, [searchParams, user, refreshUserData, router]);
 
   async function handleMarkRead(id: string) {
     await markNotificationRead(id);
@@ -135,51 +162,31 @@ export default function DashboardPage() {
     router.push('/');
   }
 
-  function handleActivate() {
+  async function handleActivate() {
     if (!user || !userData) return;
     setActivationError('');
+    setActivating(true);
     const u = userData as UserData;
     const fee = getActivationFee(u.tier, u.planType);
-    const amountInCents = fee * 100;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const yoco = new (window as any).YocoSDK({
-      publicKey: process.env.NEXT_PUBLIC_YOCO_PUBLIC_KEY,
-    });
-
-    yoco.showPopup({
-      amountInCents,
-      currency: 'ZAR',
-      name: 'GoDirect247',
-      description: `${u.tier} Cover Activation`,
-      callback: async (result: { error?: { message: string }; id?: string }) => {
-        if (result.error) {
-          setActivationError(result.error.message);
-          return;
-        }
-        setActivating(true);
-        try {
-          const res = await fetch('/api/activate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: result.id, amountInCents }),
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            setActivationError(data.error || 'Payment failed. Please try again.');
-          } else {
-            await recordActivationPayment(user.uid, fee, data.chargeId);
-            await Promise.all([
-              refreshUserData(),
-              getReferralStats(user.uid).then(setReferralStats),
-            ]);
-          }
-        } catch {
-          setActivationError('Something went wrong. Please contact support.');
-        }
+    try {
+      const res = await fetch('/api/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amountInCents: fee * 100, tier: u.tier }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.redirectUrl) {
+        setActivationError(data.error || 'Could not start payment. Please try again.');
         setActivating(false);
-      },
-    });
+        return;
+      }
+      localStorage.setItem('yoco_checkout_id', data.checkoutId);
+      localStorage.setItem('yoco_activation_fee', String(fee));
+      window.location.href = data.redirectUrl;
+    } catch {
+      setActivationError('Something went wrong. Please contact support.');
+      setActivating(false);
+    }
   }
 
   async function handleWithdraw() {
