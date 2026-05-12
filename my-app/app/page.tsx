@@ -10,6 +10,7 @@ import {
   Heartbeat,
   Phone,
   Gift,
+  WhatsappLogo,
 } from '@phosphor-icons/react/dist/ssr';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
@@ -308,33 +309,77 @@ export default async function HomePage({
         </div>
       </section>
 
-      {/* ── CTA ── */}
-      <section className="bg-[#191c1f] py-24 px-5">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="font-display font-extrabold text-4xl md:text-5xl text-white tracking-tight mb-5 leading-tight">
-            Ready to protect your family today?
-          </h2>
-          <p className="text-white/50 text-lg mb-10">
-            Takes less than 5 minutes. No medicals. Pick the tier that fits your budget.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link
-              href="/signup"
-              className="bg-[#f3cc20] text-[#191c1f] font-display font-bold text-base px-10 py-4 rounded-full hover:bg-[#c9a800] transition-all"
-            >
-              Get started now
-            </Link>
-            <a
-              href="tel:+27780187995"
-              className="border-2 border-white/25 text-white font-medium text-base px-10 py-4 rounded-full hover:border-white/50 hover:bg-white/5 transition-all flex items-center justify-center gap-2"
-            >
-              <Phone size={16} /> +27 78 018 7995
-            </a>
+      {/* ── Locations ── */}
+      <section className="bg-[#f4f4f4] py-20 px-5">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <span className="text-[#0682B4] text-sm font-semibold tracking-widest uppercase">
+              Our Offices
+            </span>
+            <h2 className="font-display font-extrabold text-3xl md:text-4xl text-[#191c1f] mt-3 tracking-tight">
+              Visit or contact us
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Sandton */}
+            <div className="bg-white rounded-2xl p-6 border border-gray-200">
+              <h3 className="font-display font-bold text-[#191c1f] text-lg mb-4">Sandton</h3>
+              <address className="not-italic text-[#505a63] text-sm leading-relaxed space-y-1">
+                <p>5th Street</p>
+                <p>Atrium on 5th</p>
+                <p>9th Floor</p>
+                <p>Sandton JHB</p>
+                <p>2196</p>
+              </address>
+              <p className="mt-4 text-sm">
+                <span className="text-[#8d969e]">Tel:</span>{' '}
+                <a href="tel:0100030789" className="text-[#0682B4] hover:underline">010 003 0789</a>
+              </p>
+            </div>
+
+            {/* Cape Town */}
+            <div className="bg-white rounded-2xl p-6 border border-gray-200">
+              <h3 className="font-display font-bold text-[#191c1f] text-lg mb-4">Cape Town</h3>
+              <address className="not-italic text-[#505a63] text-sm leading-relaxed space-y-1">
+                <p>54 Oxford Street</p>
+                <p>Oxford Gate, 2nd Floor</p>
+                <p>7550</p>
+              </address>
+              <p className="mt-4 text-sm">
+                <span className="text-[#8d969e]">Tel:</span>{' '}
+                <a href="tel:0211408083" className="text-[#0682B4] hover:underline">021 140 8083</a>
+              </p>
+            </div>
+
+            {/* East London */}
+            <div className="bg-white rounded-2xl p-6 border border-gray-200">
+              <h3 className="font-display font-bold text-[#191c1f] text-lg mb-4">East London</h3>
+              <address className="not-italic text-[#505a63] text-sm leading-relaxed space-y-1">
+                <p>14 Stewart Drive</p>
+                <p>East London Berea</p>
+                <p>5241</p>
+              </address>
+              <p className="mt-4 text-sm">
+                <span className="text-[#8d969e]">Tel:</span>{' '}
+                <a href="tel:0145470285" className="text-[#0682B4] hover:underline">014 547 0285</a>
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
       <Footer />
+
+      {/* ── Floating WhatsApp ── */}
+      <a
+        href="https://wa.me/27780638753"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-6 right-6 z-50 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all hover:scale-110"
+        aria-label="Chat on WhatsApp"
+      >
+        <WhatsappLogo size={28} weight="fill" />
+      </a>
     </>
   );
 }

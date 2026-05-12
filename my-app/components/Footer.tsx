@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { Phone, WhatsappLogo } from '@phosphor-icons/react/dist/ssr';
 
 export function Footer() {
   return (
@@ -35,21 +34,6 @@ export function Footer() {
             </ul>
           </div>
 
-          <div>
-            <p className="text-white/30 text-xs font-semibold uppercase tracking-wider mb-4">
-              Contact
-            </p>
-            <ul className="space-y-2.5 text-sm text-white/50">
-              <li className="flex items-center gap-2">
-                <Phone size={14} className="text-white/30" />
-                +27 78 018 7995
-              </li>
-              <li className="flex items-center gap-2">
-                <WhatsappLogo size={14} className="text-white/30" />
-                078 063 8753 (WhatsApp)
-              </li>
-            </ul>
-          </div>
         </div>
 
         <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row justify-between gap-3 text-xs text-white/30">
